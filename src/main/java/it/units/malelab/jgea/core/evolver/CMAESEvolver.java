@@ -211,6 +211,7 @@ public class CMAESEvolver<S, F> extends AbstractIterativeEvolver<List<Double>, S
     super(solutionMapper, genotypeFactory, individualComparator);
     this.size = genotypeFactory.build(1, new Random(0)).get(0).size();
     // initialize selection and recombination parameters
+    System.out.println(size);
     lambda = 4 + (int) Math.floor(3 * Math.log(size));
     mu = (int) Math.floor(lambda / 2d);
     weights = new double[mu];

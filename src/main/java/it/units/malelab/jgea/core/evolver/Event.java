@@ -30,12 +30,18 @@ public class Event<G, S, F> implements Serializable {
 
   private final Evolver.State state;
   private final PartiallyOrderedCollection<Individual<G, S, F>> orderedPopulation;
+  private final PartiallyOrderedCollection<Individual<G, S, F>> serializationPop;
   private final Map<String, Object> attributes;
 
-  public Event(Evolver.State state, PartiallyOrderedCollection<Individual<G, S, F>> orderedPopulation) {
+  public Event(Evolver.State state, PartiallyOrderedCollection<Individual<G, S, F>> orderedPopulation, PartiallyOrderedCollection<Individual<G, S, F>> serializationPop) {
     this.state = state.copy();
     this.orderedPopulation = orderedPopulation;
+    this.serializationPop = serializationPop;
     attributes = new HashMap<>();
+  }
+
+  public Event(Evolver.State state, PartiallyOrderedCollection<Individual<G, S, F>> orderedPopulation){
+    this(state,orderedPopulation,null);
   }
 
   public Evolver.State getState() {
@@ -49,4 +55,9 @@ public class Event<G, S, F> implements Serializable {
   public Map<String, Object> getAttributes() {
     return attributes;
   }
+
+  public PartiallyOrderedCollection<Individual<G, S, F>> getSerializationPop(){
+    return this.serializationPop;
+  }
+
 }
