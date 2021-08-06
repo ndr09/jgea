@@ -3,18 +3,26 @@ package it.units.malelab.jgea.core.order;
 import org.apache.commons.math3.linear.EigenDecomposition;
 import org.apache.commons.math3.linear.MatrixUtils;
 import org.apache.commons.math3.linear.RealMatrix;
+import org.datavec.image.loader.NativeImageLoader;
 import org.deeplearning4j.datasets.iterator.DataSetIteratorSplitter;
 import org.deeplearning4j.datasets.iterator.DoublesDataSetIterator;
+import org.deeplearning4j.datasets.iterator.INDArrayDataSetIterator;
 import org.deeplearning4j.earlystopping.EarlyStoppingConfiguration;
+import org.deeplearning4j.earlystopping.EarlyStoppingResult;
 import org.deeplearning4j.earlystopping.scorecalc.DataSetLossCalculator;
 import org.deeplearning4j.earlystopping.termination.InvalidScoreIterationTerminationCondition;
 import org.deeplearning4j.earlystopping.termination.MaxEpochsTerminationCondition;
 import org.deeplearning4j.earlystopping.trainer.EarlyStoppingGraphTrainer;
+import org.deeplearning4j.earlystopping.trainer.EarlyStoppingTrainer;
 import org.deeplearning4j.nn.conf.ComputationGraphConfiguration;
+import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
+import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 import org.deeplearning4j.nn.graph.ComputationGraph;
+import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
 import org.nd4j.common.primitives.Pair;
-import org.nd4j.linalg.cpu.nativecpu.NDArray;
+import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,21 +45,32 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
     public int counter2 = 0;
     protected final int k;
     protected final int nc_target;
-    protected final Function<T, double[]> getData;
+    protected final Function<T, double[][]> getData;
     protected double minD;
     protected int neighbourSize;
-    protected ComputationGraph vae;
+    protected MultiLayerNetwork vae;
 
     public AuroraMap(int bd_size, int neighbourSize, int k, int nc_target, int batch_size, Boolean maximize,
-                     PartialComparator<? super T> comparator, Function<T, Double> getFitness, Function<T, double[]> getData,
-                     ComputationGraphConfiguration conf) {
+                     PartialComparator<? super T> comparator, Function<T, Double> getFitness, Function<T, double[][]> getData,
+                     MultiLayerConfiguration conf) {
         archive = new HashMap<>();
         this.maximize = maximize;
         this.descriptor = ind -> {
-            double[][] md = new double[1][];
-            md[0] = getData.apply(ind);
-            NDArray nd = new NDArray(md);
-            return vae.feedForward(nd, false).get("encoder").toDoubleVector();
+            double[][][][] md = new double[1][1][][];
+            md[0][0] = getData.apply(ind);
+            INDArray input = Nd4j.create(md);
+
+            /*NativeImageLoader nil = new NativeImageLoader(md.length, md[0].length, 1);
+            try {
+                input = nil.asMatrix(md);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }*/
+            vae.setInputMiniBatchSize(1);
+            vae.setInput(input);
+            double[] d = vae.activateSelectedLayers(0,4,input).toDoubleVector();
+
+            return d;
         };
 
         this.getFitness = getFitness;
@@ -65,15 +84,18 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
         this.nc_target = nc_target;
         this.getData = getData;
         this.minD = 0;
-        this.vae = new ComputationGraph(conf);
-
+        this.vae = new MultiLayerNetwork(conf);
+        this.vae.init();
         vae.setListeners(new ScoreIterationListener(1));
 
 
     }
 
-    public void trainEncoder(ArrayList<Pair<double[], double[]>> data) {
-        DoublesDataSetIterator dd = new DoublesDataSetIterator(data, batch_size);
+    public void trainEncoder(ArrayList<Pair<INDArray, INDArray>> data) {
+        long tt =System.currentTimeMillis();
+        System.out.println("start training "+tt);
+        vae.setInputMiniBatchSize(32);
+        INDArrayDataSetIterator dd = new INDArrayDataSetIterator(data, batch_size);
         DataSetIteratorSplitter ds = new DataSetIteratorSplitter(dd, data.size() % batch_size, 0.8);
 
         EarlyStoppingConfiguration esConf = new EarlyStoppingConfiguration.Builder()
@@ -82,8 +104,10 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
                 .scoreCalculator(new DataSetLossCalculator(ds.getTestIterator(), true))
                 .evaluateEveryNEpochs(1)
                 .build();
-        EarlyStoppingGraphTrainer trainer = new EarlyStoppingGraphTrainer(esConf, vae, ds.getTrainIterator());
-        trainer.fit();
+        EarlyStoppingTrainer trainer = new EarlyStoppingTrainer(esConf, vae, ds.getTrainIterator());
+        EarlyStoppingResult t = trainer.fit();
+        System.out.println("end training "+(System.currentTimeMillis()-tt));
+        System.out.println(t.getTerminationDetails());
     }
 
     public void updateArchive(ArrayList<T> pop) {
@@ -109,13 +133,14 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
     }
 
     public void updateDescriptors() {
-        ArrayList<Pair<double[], double[]>> data = new ArrayList<>(); //rows individual, columns are sensory data
+        ArrayList<Pair<INDArray,INDArray>> data = new ArrayList<>(); //rows individual, columns are sensory data
         ArrayList<T> pop = new ArrayList<>(archive.values());
         archive.clear();
 
         int r = 0;
         for (T individual : pop) {
-            double[] ind_data = descriptor.apply(individual);
+            INDArray ind_data =  Nd4j.create(getData.apply(individual));
+            System.out.println(ind_data.columns()+"   dd  "+ind_data.rows());
             data.add(new Pair<>(ind_data, ind_data));
             r += 1;
         }
@@ -124,10 +149,10 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
         data.clear();
 
         RealMatrix newDescriptor = getDescriptors(pop);
-
-        this.minD = 0.9 * newMind(newDescriptor);
+        //System.out.println(newDescriptor.getRowDimension()+"   "+newDescriptor.getColumnDimension());
+        this.minD = newMind(newDescriptor);
+        System.out.println(this.minD);
         updateArchive(pop);
-        this.minD = this.minD / 0.9;
 
 
     }
@@ -159,6 +184,7 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
                                 Arrays.stream(finalDescs.getColumn(i)).min().getAsDouble())
                 .reduce(1, (a, b) -> a * b);
         this.minD = 0.5 * nroot(volume / nc_target, size);
+        System.out.println("initial min distance "+this.minD);
     }
 
     private double nroot(double val, double n) {
@@ -167,6 +193,7 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
 
     private double newMind(RealMatrix descriptors) {
         double maxDistance = distance(descriptors);
+        System.out.println("max distance "+maxDistance);
         double tmp = this.k * this.nc_target;
         return maxDistance / nroot(k, size);
     }
@@ -176,8 +203,8 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
     }
 
     private double distance(RealMatrix data) {
-
-        RealMatrix xx = MatrixUtils.createColumnRealMatrix(IntStream.range(0, data.getRowDimension()).mapToDouble(i -> Arrays.stream(data.getColumn(i)).map(d -> d * d).sum()).toArray());
+        //System.out.println("data "+data.getColumnDimension()+" "+data.getRowDimension());
+        RealMatrix xx = MatrixUtils.createColumnRealMatrix(IntStream.range(0, data.getRowDimension()).mapToDouble(i -> Arrays.stream(data.getRow(i)).map(d -> d * d).sum()).toArray());
         RealMatrix xy = (data.scalarMultiply(2)).multiply(data.transpose());
         RealMatrix dist = xx.multiply((MatrixUtils.createRealMatrix(1, xx.getRowDimension()).scalarAdd(1)));
         dist = dist.add((MatrixUtils.createRealMatrix(xx.getRowDimension(), 1).scalarAdd(1)).multiply(xx.transpose()));

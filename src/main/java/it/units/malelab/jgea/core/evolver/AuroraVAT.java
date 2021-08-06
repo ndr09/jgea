@@ -7,6 +7,8 @@ import it.units.malelab.jgea.core.listener.Listener;
 import it.units.malelab.jgea.core.operator.Mutation;
 import it.units.malelab.jgea.core.order.*;
 import org.deeplearning4j.nn.conf.ComputationGraphConfiguration;
+import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
+import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 
 import java.util.Collection;
 import java.util.List;
@@ -36,10 +38,10 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
     protected int batch_size;
     protected int seed;
 
-    public AuroraVAT(Function<List<Double>, ? extends S> solutionMapper, Function<Individual<List<Double>, S, F>, Double> getFitness, Function< Individual<List<Double>, S, F>, double[]> getData,
+    public AuroraVAT(Function<List<Double>, ? extends S> solutionMapper, Function<Individual<List<Double>, S, F>, Double> getFitness, Function< Individual<List<Double>, S, F>, double[][]> getData,
                      Factory<List<Double>> genotypeFactory, PartialComparator<? super Individual<List<Double>, S, F>> individualComparator, Mutation<List<Double>> mutation,
                      int populationSize, int size, int neighbourSize, int batch_size_vae, int batch_size, int nc_target,
-                     int k, int linearUpdateIncrease, ComputationGraphConfiguration netConf, int seed) {
+                     int k, int linearUpdateIncrease, MultiLayerConfiguration netConf, int seed) {
 
         super(solutionMapper, genotypeFactory, individualComparator);
         this.mutation = mutation;

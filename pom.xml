@@ -12,15 +12,16 @@
         <maven.compiler.target>14</maven.compiler.target>
     </properties>
     <dependencies>
-            <dependency>
-                <groupId>org.deeplearning4j</groupId>
-                <artifactId>deeplearning4j-core</artifactId>
-                <version>1.0.0-beta7</version>
-            </dependency>
+
         <dependency>
             <groupId>org.nd4j</groupId>
             <artifactId>nd4j-native-platform</artifactId>
-            <version>1.0.0-beta7</version>
+            <version>1.0.0-M1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.deeplearning4j</groupId>
+            <artifactId>deeplearning4j-core</artifactId>
+            <version>1.0.0-M1.1</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -68,6 +69,32 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.4</version>
+                <configuration>
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>module-info.class</exclude>
+                                <exclude>META-INF/*.SF</exclude>
+                                <exclude>META-INF/*.DSA</exclude>
+                                <exclude>META-INF/*.RSA</exclude>
+                            </excludes>
+                        </filter>
+                    </filters>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
