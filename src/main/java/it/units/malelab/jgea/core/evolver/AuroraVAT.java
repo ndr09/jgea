@@ -6,17 +6,12 @@ import it.units.malelab.jgea.core.Individual;
 import it.units.malelab.jgea.core.listener.Listener;
 import it.units.malelab.jgea.core.operator.Mutation;
 import it.units.malelab.jgea.core.order.*;
-import org.deeplearning4j.nn.conf.ComputationGraphConfiguration;
-import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
-import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.logging.Logger;
@@ -37,11 +32,12 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
     protected int counterUpdate = 1;
     protected int batch_size;
     protected int seed;
+    Function<Individual<List<Double>, S, F>, double[]> helps;
 
-    public AuroraVAT(Function<List<Double>, ? extends S> solutionMapper, Function<Individual<List<Double>, S, F>, Double> getFitness, Function< Individual<List<Double>, S, F>, double[][]> getData,
+    public AuroraVAT(Function<List<Double>, ? extends S> solutionMapper, Function<Individual<List<Double>, S, F>, Double> getFitness, Function< Individual<List<Double>, S, F>, double[]> getData, BiFunction<Individual<List<Double>, S, F>, double[], double[]> setDesc,
                      Factory<List<Double>> genotypeFactory, PartialComparator<? super Individual<List<Double>, S, F>> individualComparator, Mutation<List<Double>> mutation,
                      int populationSize, int size, int neighbourSize, int batch_size_vae, int batch_size, int nc_target,
-                     int k, int linearUpdateIncrease, MultiLayerConfiguration netConf, int seed) {
+                     int k, int linearUpdateIncrease, int seed, int fs,Function<Individual<List<Double>, S, F>, double[]> helps) {
 
         super(solutionMapper, genotypeFactory, individualComparator);
         this.mutation = mutation;
@@ -50,7 +46,8 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
         this.nextUpdateIteration = linearUpdateIncrease;
         this.batch_size = batch_size;
         this.seed = seed;
-        population = new AuroraMap<>(size, neighbourSize, k, nc_target, batch_size_vae, true, individualComparator, getFitness, getData, netConf);
+        this.helps =helps;
+        population = new AuroraMap<>(size, neighbourSize, k, nc_target, batch_size_vae, true, fs, individualComparator, getFitness, getData, setDesc);
     }
 
     @Override
@@ -61,16 +58,23 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
 
         L.fine(String.format("Population initialized: %d individuals", population.size()));
         DAGPartiallyOrderedCollection<Individual<List<Double>, S, F>> newPopsAdded = new DAGPartiallyOrderedCollection<>(individualComparator);
+        DAGPartiallyOrderedCollection<Individual<List<Double>, S, F>> newPopsRemoved = new DAGPartiallyOrderedCollection<>(individualComparator);
+
         population.initialiseMinDistance(newPops);
         population.addAll(newPops);
         for (Individual<List<Double>, S, F> ind : population.lastAdded) {
             newPopsAdded.add(ind);
         }
+        for (Individual<List<Double>, S, F> ind : population.lastRemoved) {
+            newPopsRemoved.add(ind);
+        }
+        population.lastAdded.clear();
+        population.lastRemoved.clear();
         while (true) {
 
             state.setElapsedMillis(stopwatch.elapsed(TimeUnit.MILLISECONDS));
 
-            Event<List<Double>, S, F> event = new Event<>(state, population, newPopsAdded);
+            Event<List<Double>, S, F> event = new Event<>(state, population, newPopsAdded, newPopsRemoved);
 
             listener.listen(event);
             if (stopCondition.test(event)) {
@@ -78,26 +82,31 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
                 L.fine(String.format("Stop condition met: %s", stopCondition.toString()));
                 break;
             }
-
             newPops = updatePopulation(population, fitnessFunction, random, executor, state);
             newPopsAdded = new DAGPartiallyOrderedCollection<>(individualComparator);
+            newPopsRemoved = new DAGPartiallyOrderedCollection<>(individualComparator);
             population.addAll(newPops);
+
+            L.fine(String.format("Population updated: %d individuals", population.size()));
+
             for (Individual<List<Double>, S, F> ind : population.lastAdded) {
                 newPopsAdded.add(ind);
             }
+            for (Individual<List<Double>, S, F> ind : population.lastRemoved) {
+                newPopsRemoved.add(ind);
+            }
             population.lastAdded.clear();
-            L.fine(String.format("Population updated: %d individuals", population.size()));
-
+            population.lastRemoved.clear();
             if (state.getIterations() == nextUpdateIteration) {
                 counterUpdate += 1;
                 nextUpdateIteration += counterUpdate * linearUpdateIncrease;
+                L.fine(String.format("Start update descriptors %d", counterUpdate));
                 population.updateDescriptors();
-                population.saveEncoder(seed+"_encoder_"+counterUpdate);
+                L.fine(String.format("End update descriptors %d", counterUpdate));
+                //population.saveEncoder(seed+"_encoder_"+counterUpdate);
 
             }
             state.incIterations(1);
-
-
         }
         listener.done();
         return new DAGPartiallyOrderedCollection<>(population.values(), individualComparator).firsts().stream()

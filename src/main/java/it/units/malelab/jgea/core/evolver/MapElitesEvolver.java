@@ -64,7 +64,7 @@ public class MapElitesEvolver<S,F> extends AbstractIterativeEvolver<List<Double>
 
             state.setElapsedMillis(stopwatch.elapsed(TimeUnit.MILLISECONDS));
 
-            Event<List<Double>, S, F> event = new Event<>(state, population, newPopsAdded);
+            Event<List<Double>, S, F> event = new Event<>(state, population, newPopsAdded,null);
 
             listener.listen(event);
             if (stopCondition.test(event)) {
