@@ -28,6 +28,7 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
     protected final List<Integer> size;
     protected final List<Double> min;
     protected final List<Double> max;
+    public ArrayList<T> lastAddedPerformance;
     public int counter = 0;
     public int counter2 = 0;
 
@@ -142,22 +143,26 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
         //System.out.println(s.toString());
         if (oldInd != null) {
             if (maximize) {
-                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.AFTER)) {
+                if (helper.apply(individual) >= helper.apply(oldInd)) {
 
                     archive.put(convertedIndexes, individual);
+                    this.lastAddedPerformance.add(individual);
                 }
             } else {
-                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.BEFORE)) {
+                if (helper.apply(individual) <= helper.apply(oldInd)) {
                     archive.put(convertedIndexes, individual);
+                    this.lastAddedPerformance.add(individual);
                 }
             }
         } else {
             archive.put(convertedIndexes, individual);
+            this.lastAddedPerformance.add(individual);
         }
     }
 
 
     public void addAll(Collection<T> individuals) {
+        this.lastAddedPerformance = new ArrayList<>();
         for (T individual : individuals) {
             this.add(individual);
         }

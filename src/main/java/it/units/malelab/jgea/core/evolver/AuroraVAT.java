@@ -89,20 +89,21 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
 
             L.fine(String.format("Population updated: %d individuals", population.size()));
 
-            for (Individual<List<Double>, S, F> ind : population.lastAdded) {
-                newPopsAdded.add(ind);
-            }
-            for (Individual<List<Double>, S, F> ind : population.lastRemoved) {
-                newPopsRemoved.add(ind);
-            }
-            population.lastAdded.clear();
-            population.lastRemoved.clear();
+
             if (state.getIterations() == nextUpdateIteration) {
                 counterUpdate += 1;
                 nextUpdateIteration += counterUpdate * linearUpdateIncrease;
                 L.fine(String.format("Start update descriptors %d", counterUpdate));
                 population.updateDescriptors();
                 L.fine(String.format("End update descriptors %d", counterUpdate));
+                for (Individual<List<Double>, S, F> ind : population.lastAdded) {
+                    newPopsAdded.add(ind);
+                }
+                for (Individual<List<Double>, S, F> ind : population.lastRemoved) {
+                    newPopsRemoved.add(ind);
+                }
+                population.lastAdded.clear();
+                population.lastRemoved.clear();
                 //population.saveEncoder(seed+"_encoder_"+counterUpdate);
 
             }

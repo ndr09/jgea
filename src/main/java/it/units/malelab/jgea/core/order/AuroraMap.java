@@ -281,6 +281,8 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
 
     public void addAll(Collection<T> indvs) {
         int c = 0;
+        lastAdded = new ArrayList<>();
+        lastRemoved = new ArrayList<>();
         for (T ind : indvs) {
             add(ind);
             c++;
@@ -338,10 +340,8 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
                     archive.put(Arrays.stream(desc).boxed().collect(Collectors.toList()), ind);
                     setDesc.apply(ind,desc);
                     lastAdded.add(ind);
-
                     setDesc.apply(ind1, descriptor.apply(ind1));
                     lastRemoved.add(ind1);
-
                     this.counter2 += 1;
                 }else {
                     this.counter += 1;
