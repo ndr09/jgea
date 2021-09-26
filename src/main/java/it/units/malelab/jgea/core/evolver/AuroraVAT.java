@@ -86,15 +86,20 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
             newPopsAdded = new DAGPartiallyOrderedCollection<>(individualComparator);
             newPopsRemoved = new DAGPartiallyOrderedCollection<>(individualComparator);
             population.addAll(newPops);
+            System.out.println("added "+newPops.size()+" not add "+population.counter+"   new add "+population.counter1+"  updated"+population.counter2);
 
             L.fine(String.format("Population updated: %d individuals", population.size()));
 
 
-            if (state.getIterations() == nextUpdateIteration) {
+            if (state.getIterations()  == nextUpdateIteration) {
                 counterUpdate += 1;
                 nextUpdateIteration += counterUpdate * linearUpdateIncrease;
                 L.fine(String.format("Start update descriptors %d", counterUpdate));
+                int c = population.all().size();
+                int a =population.counter;
+                int b = population.counter1;
                 population.updateDescriptors();
+                System.out.println("update descriptr "+c+" not add "+population.counter+" differnce "+(population.counter-a) + " new add "+population.counter1+" differnce "+(population.counter1-b) + "  updated"+population.counter2);
                 L.fine(String.format("End update descriptors %d", counterUpdate));
                 for (Individual<List<Double>, S, F> ind : population.lastAdded) {
                     newPopsAdded.add(ind);

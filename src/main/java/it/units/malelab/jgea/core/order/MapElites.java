@@ -105,6 +105,30 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
         return false;
     }
 
+    public double getCrowedness(T individual){
+        List<Integer> indexes = index(individual);
+        int crowed =0;
+        for (int i = -1; i <= 1; i++) {
+            for (int j = -1; j <= 1; j++) {
+                for (int k = -1; k <= 1; k++) {
+                    for (int l = -1; l <= 1; l++) {
+                        if (i != 0 && j != 0 && k != 0 && l != 0) {
+                            List<Integer> ni = indexes;
+                            ni.set(0,ni.get(0)+i);
+                            ni.set(1,ni.get(1)+j);
+                            ni.set(2,ni.get(2)+k);
+                            ni.set(3,ni.get(3)+l);
+                            crowed += archive.containsKey(ni)? 1:0;
+                        }
+                    }
+                 }
+            }
+
+        }
+        return 1 - crowed/(Math.pow(3,4)-1);
+
+    }
+
     @Override
     public Collection<T> all() {
         return Collections.unmodifiableCollection(archive.values());
@@ -133,14 +157,9 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
     }
 
     public void add(T individual) {
-        List<Double> indexes = this.descriptor.apply(individual);
-        List<Integer> convertedIndexes = calcIndexes(indexes);
+        List<Integer> convertedIndexes = index(individual);
         T oldInd = archive.get(convertedIndexes);
-        StringBuilder s = new StringBuilder();
-        for (Integer i : convertedIndexes) {
-            s.append(i).append("  ");
-        }
-        //System.out.println(s.toString());
+
         if (oldInd != null) {
             if (maximize) {
                 if (helper.apply(individual) >= helper.apply(oldInd)) {

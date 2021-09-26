@@ -39,6 +39,7 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
     protected RealMatrix mean;
     protected  BiFunction<T, double[], double[]> setDesc;
     protected int fs;
+    boolean flag = true;
 
     public AuroraMap(int bd_size, int neighbourSize, int k, int nc_target, int batch_size, Boolean maximize, int fs,
                      PartialComparator<? super T> comparator, Function<T, Double> getFitness, Function<T, double[]> getData, BiFunction<T, double[], double[]> setDesc
@@ -58,7 +59,6 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
             meanCenterData(realMatrix);
             //create real matrix
             double[][] desc = eigenvectors.transpose().multiply(realMatrix.transpose()).transpose().getData();
-
             return desc[0];
         };
 
@@ -192,18 +192,20 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
     }
 
     private double distance(RealMatrix data) {
-        //System.out.println("data "+data.getColumnDimension()+" "+data.getRowDimension());
-        RealMatrix xx = MatrixUtils.createColumnRealMatrix(IntStream.range(0, data.getRowDimension()).mapToDouble(i -> Arrays.stream(data.getRow(i)).map(d -> d * d).sum()).toArray());
+        System.out.println("data "+data.getColumnDimension()+" "+data.getRowDimension());
+        RealMatrix xx = MatrixUtils.createColumnRealMatrix(
+                IntStream.range(0, data.getRowDimension()).mapToDouble(
+                        i -> Arrays.stream(data.getRow(i)).map(d -> d * d).sum()).toArray());
         RealMatrix xy = (data.scalarMultiply(2)).multiply(data.transpose());
         RealMatrix dist = xx.multiply((MatrixUtils.createRealMatrix(1, xx.getRowDimension()).scalarAdd(1)));
         dist = dist.add((MatrixUtils.createRealMatrix(xx.getRowDimension(), 1).scalarAdd(1)).multiply(xx.transpose()));
         dist = dist.subtract(xy);
-        return maxCoeff(dist);
+        return Math.sqrt(maxCoeff(dist));
 
     }
 
     private double maxCoeff(RealMatrix m) {
-        double max = -Double.MAX_VALUE;
+        double max = -1*Double.MAX_VALUE;
         for (int r = 0; r < m.getRowDimension(); r++) {
             for (int c = 0; c < m.getColumnDimension(); c++) {
                 double e = m.getEntry(r, c);
@@ -223,7 +225,9 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
         for(int index=0; index< a.length; index++){
             sum[index] = Math.pow(a[index]-b[index], a.length);
         }
-        return nroot(Arrays.stream(sum).sum(), a.length);
+        double d = nroot(Arrays.stream(sum).sum(), a.length);
+        System.out.println("indiviudal distance "+d);
+        return d;
     }
 
     private double nearestDistance(T ind) {
@@ -287,7 +291,7 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
             add(ind);
             c++;
         }
-        System.out.println("add c "+c+"   not add "+this.counter+"   new add "+this.counter1+"  updated"+this.counter2);
+
     }
 
     private void meanCenterData(RealMatrix data) {
@@ -315,6 +319,9 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
             this.counter1 +=1;
         } else if (archive.size() == 1) {
             this.counter += 1;
+            double[] desc =descriptor.apply(ind);
+            setDesc.apply(ind,desc);
+            lastRemoved.add(ind);
         } else {
             List<T> nn = knn(ind, 2);
             if (pointDistance(ind, nn.get(1)) > this.minD) {
@@ -334,7 +341,7 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
                 if ((score_ind[0] >= (1 - Math.signum(score_ind1[0]) * 0.1) * score_ind1[0] &&
                         score_ind[1] >= (1 - Math.signum(score_ind1[1]) * 0.1) * score_ind1[1]) &&
                         ((score_ind[0] - score_ind1[0]) * Math.abs(score_ind1[1]) > -(score_ind[1] - score_ind1[1]) * Math.abs(score_ind1[0]))) {
-
+                    //if (score_ind[0] > score_ind1[0]){
                     archive.remove(Arrays.stream(descriptor.apply(ind1)).boxed().collect(Collectors.toList()));
                     double[] desc =descriptor.apply(ind);
                     archive.put(Arrays.stream(desc).boxed().collect(Collectors.toList()), ind);
@@ -345,9 +352,15 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
                     this.counter2 += 1;
                 }else {
                     this.counter += 1;
+                    double[] desc =descriptor.apply(ind);
+                    setDesc.apply(ind,desc);
+                    lastRemoved.add(ind);
                 }
             }else{
                 this.counter +=1;
+                double[] desc =descriptor.apply(ind);
+                setDesc.apply(ind,desc);
+                lastRemoved.add(ind);
             }
 
         }
