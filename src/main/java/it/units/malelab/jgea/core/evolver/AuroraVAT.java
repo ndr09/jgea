@@ -34,10 +34,10 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
     protected int seed;
     Function<Individual<List<Double>, S, F>, double[]> helps;
 
-    public AuroraVAT(Function<List<Double>, ? extends S> solutionMapper, Function<Individual<List<Double>, S, F>, Double> getFitness, Function< Individual<List<Double>, S, F>, double[]> getData, BiFunction<Individual<List<Double>, S, F>, double[], double[]> setDesc,
+    public AuroraVAT(Function<List<Double>, ? extends S> solutionMapper, Function<Individual<List<Double>, S, F>, Double> getFitness, Function<Individual<List<Double>, S, F>, double[]> getData, BiFunction<Individual<List<Double>, S, F>, double[], double[]> setDesc,
                      Factory<List<Double>> genotypeFactory, PartialComparator<? super Individual<List<Double>, S, F>> individualComparator, Mutation<List<Double>> mutation,
                      int populationSize, int size, int neighbourSize, int batch_size_vae, int batch_size, int nc_target,
-                     int k, int linearUpdateIncrease, int seed, int fs,Function<Individual<List<Double>, S, F>, double[]> helps) {
+                     int k, int linearUpdateIncrease, int seed, int fs, Function<Individual<List<Double>, S, F>, double[]> helps) {
 
         super(solutionMapper, genotypeFactory, individualComparator);
         this.mutation = mutation;
@@ -46,7 +46,7 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
         this.nextUpdateIteration = linearUpdateIncrease;
         this.batch_size = batch_size;
         this.seed = seed;
-        this.helps =helps;
+        this.helps = helps;
         population = new AuroraMap<>(size, neighbourSize, k, nc_target, batch_size_vae, true, fs, individualComparator, getFitness, getData, setDesc);
     }
 
@@ -86,20 +86,17 @@ public class AuroraVAT<S, F> extends AbstractIterativeEvolver<List<Double>, S, F
             newPopsAdded = new DAGPartiallyOrderedCollection<>(individualComparator);
             newPopsRemoved = new DAGPartiallyOrderedCollection<>(individualComparator);
             population.addAll(newPops);
-            System.out.println("added "+newPops.size()+" not add "+population.counter+"   new add "+population.counter1+"  updated"+population.counter2);
-
             L.fine(String.format("Population updated: %d individuals", population.size()));
 
 
-            if (state.getIterations()  == nextUpdateIteration) {
+            if (state.getIterations() == nextUpdateIteration) {
                 counterUpdate += 1;
                 nextUpdateIteration += counterUpdate * linearUpdateIncrease;
                 L.fine(String.format("Start update descriptors %d", counterUpdate));
                 int c = population.all().size();
-                int a =population.counter;
+                int a = population.counter;
                 int b = population.counter1;
                 population.updateDescriptors();
-                System.out.println("update descriptr "+c+" not add "+population.counter+" differnce "+(population.counter-a) + " new add "+population.counter1+" differnce "+(population.counter1-b) + "  updated"+population.counter2);
                 L.fine(String.format("End update descriptors %d", counterUpdate));
                 for (Individual<List<Double>, S, F> ind : population.lastAdded) {
                     newPopsAdded.add(ind);

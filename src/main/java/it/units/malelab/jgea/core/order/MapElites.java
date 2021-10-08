@@ -66,8 +66,8 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
         }
         //System.out.println("----------");
         Integer tmp = newIndexes.get(1);
-        newIndexes.set(1,newIndexes.get(2));
-        newIndexes.set(2,tmp);
+        newIndexes.set(1, newIndexes.get(2));
+        newIndexes.set(2, tmp);
         //System.out.println("-------");
         return newIndexes;
     }
@@ -86,15 +86,17 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
             return true;
         } else {
             if (maximize) {
+                //S(helper.apply(individual) < helper.apply(oldInd)) {//
+                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.BEFORE)) {
 
-                //System.out.println(calcIndexes(indexes).toString()+";"+helper.apply(individual)+";"+helper.apply(oldInd));
-                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.AFTER)) {
                     counter2 += 1;
+
+                    System.out.println(calcIndexes(indexes).toString() + "; " + helper.apply(individual) + "; " + helper.apply(oldInd));
                     //System.out.println(calcIndexes(indexes).toString());
-                    return true;
+                    return false;
                 }
             } else {
-                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.BEFORE)) {
+                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.AFTER)) {
                     counter2 += 1;
                     return true;
                 }
@@ -105,27 +107,27 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
         return false;
     }
 
-    public double getCrowedness(T individual){
+    public double getCrowedness(T individual) {
         List<Integer> indexes = index(individual);
-        int crowed =0;
+        int crowed = 0;
         for (int i = -1; i <= 1; i++) {
             for (int j = -1; j <= 1; j++) {
                 for (int k = -1; k <= 1; k++) {
                     for (int l = -1; l <= 1; l++) {
                         if (i != 0 && j != 0 && k != 0 && l != 0) {
                             List<Integer> ni = indexes;
-                            ni.set(0,ni.get(0)+i);
-                            ni.set(1,ni.get(1)+j);
-                            ni.set(2,ni.get(2)+k);
-                            ni.set(3,ni.get(3)+l);
-                            crowed += archive.containsKey(ni)? 1:0;
+                            ni.set(0, ni.get(0) + i);
+                            ni.set(1, ni.get(1) + j);
+                            ni.set(2, ni.get(2) + k);
+                            ni.set(3, ni.get(3) + l);
+                            crowed += archive.containsKey(ni) ? 1 : 0;
                         }
                     }
-                 }
+                }
             }
 
         }
-        return 1 - crowed/(Math.pow(3,4)-1);
+        return 1 - crowed / (Math.pow(3, 4) - 1);
 
     }
 
@@ -163,12 +165,14 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
         if (oldInd != null) {
             if (maximize) {
                 if (helper.apply(individual) >= helper.apply(oldInd)) {
+                //if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.BEFORE)) {
 
                     archive.put(convertedIndexes, individual);
                     this.lastAddedPerformance.add(individual);
                 }
             } else {
-                if (helper.apply(individual) <= helper.apply(oldInd)) {
+                //if (helper.apply(individual) <= helper.apply(oldInd)) {
+                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.AFTER)) {
                     archive.put(convertedIndexes, individual);
                     this.lastAddedPerformance.add(individual);
                 }

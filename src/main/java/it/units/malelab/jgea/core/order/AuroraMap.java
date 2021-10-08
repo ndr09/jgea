@@ -50,14 +50,12 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
         this.setDesc =setDesc;
         this.descriptor = ind -> {
             long tt = System.currentTimeMillis();
-            //System.out.println("start desc");
             double[] pointsArray = getData.apply(ind);
             RealMatrix realMatrix = MatrixUtils.createRowRealMatrix(pointsArray);
             if (this.mean == null) {
                 calculateMean(realMatrix);
             }
             meanCenterData(realMatrix);
-            //create real matrix
             double[][] desc = eigenvectors.transpose().multiply(realMatrix.transpose()).transpose().getData();
             return desc[0];
         };
@@ -79,7 +77,6 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
 
     private void calculateMean(RealMatrix data) {
         if (mean == null) {
-            //System.out.println("mean dimension "+data.getColumnDimension());
             mean = MatrixUtils.createRealMatrix(1, data.getColumnDimension());
         }
         for (int i = 0; i < data.getColumnDimension(); i++) {
@@ -103,7 +100,6 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
     public void updateArchive(ArrayList<T> pop) {
 
         addAll(pop);
-        //lastAdded.clear();
 
     }
 
@@ -112,7 +108,6 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
 
         int r = 0;
         for (T individual : pop) {
-
             desc.setRow(r, descriptor.apply(individual));
         }
 
@@ -159,10 +154,6 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
         }
 
         RealMatrix normed = MatrixUtils.createRealMatrix(beavs);
-        //EigenDecomposition ed = new EigenDecomposition(normed.transpose().multiply(normed));
-        //RealMatrix ev = ed.getV();
-        //normed = (ev.transpose().multiply(normed.transpose())).transpose();
-
         RealMatrix finalDescs = normed;
 
         double volume = IntStream.range(0, normed.getColumnDimension()).
@@ -226,7 +217,6 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
             sum[index] = Math.pow(a[index]-b[index], a.length);
         }
         double d = nroot(Arrays.stream(sum).sum(), a.length);
-        System.out.println("indiviudal distance "+d);
         return d;
     }
 
@@ -301,13 +291,6 @@ public class AuroraMap<T> implements PartiallyOrderedCollection<T> {
             }
         }
     }
-    /*public void saveEncoder(String filename)  {
-        try {
-            vae.save(new File(filename));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }*/
 
     @Override
     public void add(T ind) {

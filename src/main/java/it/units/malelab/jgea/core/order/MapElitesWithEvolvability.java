@@ -11,16 +11,17 @@ import java.util.function.Function;
 
 public class MapElitesWithEvolvability<T> extends MapElites<T>{
 
-    protected HashMap<List<Integer>, Pair<T, Integer>> evolvabilityArchive;
-    protected BiFunction<T, Integer, double[]> setEvo;
+    protected HashMap<List<Integer>, Pair<T, Double>> evolvabilityArchive;
+    protected BiFunction<T, Double, double[]> setEvo;
+    protected Function<T, Double> getEvo;
     protected double minimumFactor = 0d;
     public ArrayList<T> lastAddedEvolvability;
 
-    public MapElitesWithEvolvability(List<Integer> size, List<Double> min, List<Double> max, Boolean maximize, Function<T, List<Double>> descriptor, PartialComparator<? super T> comparator, Function<T, Double> helper, BiFunction<T, Integer, double[]> setEvo) {
+    public MapElitesWithEvolvability(List<Integer> size, List<Double> min, List<Double> max, Boolean maximize, Function<T, List<Double>> descriptor, PartialComparator<? super T> comparator, Function<T, Double> helper, BiFunction<T, Double, double[]> setEvo,  Function<T, Double> getEvo) {
         super(size, min, max, maximize, descriptor, comparator, helper);
         evolvabilityArchive = new HashMap<>();
         this.setEvo = setEvo;
-
+        this.getEvo = getEvo;
     }
 
     public void addAll(List<T> pops, List<List<T>> children){
@@ -29,12 +30,12 @@ public class MapElitesWithEvolvability<T> extends MapElites<T>{
         for (int i = 0; i < pops.size(); i++) {
             add(pops.get(i), children.get(i));
         }
-        updateMinimumFactor();
+        //updateMinimumFactor();
     }
 
     public List<T> getEvolvabilityPopulation(){
         List<T> pp = new ArrayList<>();
-        for(Pair<T,Integer> p:this.evolvabilityArchive.values()){
+        for(Pair<T,Double> p:this.evolvabilityArchive.values()){
             pp.add(p.first());
         }
         return pp;
@@ -68,26 +69,30 @@ public class MapElitesWithEvolvability<T> extends MapElites<T>{
 
         this.add(ind);
         HashSet<List<Integer>> differentChild = new HashSet<>();
+        ArrayList<T> selectedChild = new ArrayList<>();
         differentChild.add(index(ind));
 
         for (T child: children){
             if( helper.apply(child) >= minimumFactor) {
                 differentChild.add(index(child));
+                selectedChild.add(child);
             }
         }
-        int evolvability = differentChild.size();
+        //int evolvability = differentChild.size();
+        double evolvability = getEvo.apply(ind);
+        for ( T child: selectedChild){
+            evolvability += helper.apply(child);
+        }
 
-
-        Pair<T, Integer> pair = evolvabilityArchive.get(index(ind));
+        Pair<T, Double> pair = evolvabilityArchive.get(index(ind));
 
         if (pair == null) {
-            evolvabilityArchive.put(index(ind), Pair.of(ind,evolvability));
             setEvo.apply(ind, evolvability);
+            evolvabilityArchive.put(index(ind), Pair.of(ind,evolvability));
             lastAddedEvolvability.add(ind);
         }else if (pair.second()<= evolvability){
-
-            evolvabilityArchive.put(index(ind), Pair.of(ind,evolvability));
             setEvo.apply(ind, evolvability);
+            evolvabilityArchive.put(index(ind), Pair.of(ind,evolvability));
             lastAddedEvolvability.add(ind);
         }
     }

@@ -20,27 +20,27 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 
-public class MapElitesWithEvolvabilityEvolver<S,F> extends AbstractIterativeEvolver<List<Double>,S,F> {
+public class MapElitesWithEvolvabilityEvolver<S, F> extends AbstractIterativeEvolver<List<Double>, S, F> {
     public enum SelectionStrategies {UNIFORM, CROWDEDNESS}
 
     protected static final Logger L = Logger.getLogger(MapElitesEvolver.class.getName());
-    protected MapElitesWithEvolvability<Individual<List<Double>,S,F>> population;
+    protected MapElitesWithEvolvability<Individual<List<Double>, S, F>> population;
     protected Mutation<List<Double>> mutation;
     protected int populationSize;
     protected int batch_size;
     protected SelectionStrategies selectionStrategies;
 
-    public MapElitesWithEvolvabilityEvolver(Function<Individual< List<Double>,S,F>, List<Double>> descriptor,
-                                     List<Double> max,
-                                     List<Double> min,
-                                     List<Integer> size,
-                                     Function<List<Double>, ? extends S> solutionMapper,
-                                     Factory<List<Double>> genotypeFactory,
-                                     PartialComparator<? super Individual<List<Double>, S, F>> individualComparator,
-                                     Mutation<List<Double>> mutation, int populationSize, int batch_size, Function<Individual< List<Double>,S,F>, Double> helper,
-                                            BiFunction<Individual< List<Double>,S,F>, Integer, double[]> setEvo, SelectionStrategies se) {
+    public MapElitesWithEvolvabilityEvolver(Function<Individual<List<Double>, S, F>, List<Double>> descriptor,
+                                            List<Double> max,
+                                            List<Double> min,
+                                            List<Integer> size,
+                                            Function<List<Double>, ? extends S> solutionMapper,
+                                            Factory<List<Double>> genotypeFactory,
+                                            PartialComparator<? super Individual<List<Double>, S, F>> individualComparator,
+                                            Mutation<List<Double>> mutation, int populationSize, int batch_size, Function<Individual<List<Double>, S, F>, Double> helper,
+                                            BiFunction<Individual<List<Double>, S, F>, Double, double[]> setEvo,  Function<Individual<List<Double>, S, F>, Double> getEvo, SelectionStrategies se) {
         super(solutionMapper, genotypeFactory, individualComparator);
-        population = new MapElitesWithEvolvability<>(size, min, max, true, descriptor, individualComparator, helper, setEvo);
+        population = new MapElitesWithEvolvability<>(size, min, max, true, descriptor, individualComparator, helper, setEvo, getEvo);
         this.mutation = mutation;
         this.populationSize = populationSize;
         this.batch_size = batch_size;
@@ -50,10 +50,16 @@ public class MapElitesWithEvolvabilityEvolver<S,F> extends AbstractIterativeEvol
     @Override
     public Collection<S> solve(Function<S, F> fitnessFunction, Predicate<? super Event<List<Double>, S, F>> stopCondition, Random random, ExecutorService executor, Listener<? super Event<List<Double>, S, F>> listener) throws InterruptedException, ExecutionException {
         State state = initState();
+        State childState = initState();
         Stopwatch stopwatch = Stopwatch.createStarted();
         Collection<Individual<List<Double>, S, F>> newPops = initPopulation(fitnessFunction, random, executor, state);
-        List<List<Individual<List<Double>, S, F>>> children = buildChildren(newPops, fitnessFunction, random, executor, state);
-
+        List<List<Individual<List<Double>, S, F>>> children = buildChildren(newPops, fitnessFunction, random, executor, childState);
+        DAGPartiallyOrderedCollection<Individual<List<Double>,S,F>> newPopsAdded = new DAGPartiallyOrderedCollection<>(individualComparator);
+        for (Individual<List<Double>,S,F> ind: newPops){
+            if (population.shouldBeRecorded(ind)){
+                newPopsAdded.add(ind);
+            }
+        }
         population.addAll(new ArrayList<>(newPops), children);
 
         while (true) {
@@ -66,13 +72,19 @@ public class MapElitesWithEvolvabilityEvolver<S,F> extends AbstractIterativeEvol
 
             listener.listen(event);
             if (stopCondition.test(event)) {
-                System.out.println(population.values().size()+" not recorded "+ population.counter+" updated "+population.counter2);
+                System.out.println(population.values().size() + " not recorded " + population.counter + " updated " + population.counter2);
                 L.fine(String.format("Stop condition met: %s", stopCondition.toString()));
                 break;
             }
 
             newPops = updatePopulation(population, fitnessFunction, random, executor, state);
-            children = buildChildren(newPops, fitnessFunction, random, executor, state);
+            children = buildChildren(newPops, fitnessFunction, random, executor, childState);
+            newPopsAdded = new DAGPartiallyOrderedCollection<>(individualComparator);
+            for (Individual<List<Double>,S,F> ind: newPops){
+                if (population.shouldBeRecorded(ind)){
+                    newPopsAdded.add(ind);
+                }
+            }
             population.addAll(new ArrayList<>(newPops), children);
             L.fine(String.format("Population updated: %d individuals", population.size()));
             state.incIterations(1);
@@ -96,14 +108,14 @@ public class MapElitesWithEvolvabilityEvolver<S,F> extends AbstractIterativeEvol
 
 
     protected Collection<Individual<List<Double>, S, F>> buildOffspring(PartiallyOrderedCollection<Individual<List<Double>, S, F>> orderedPopulation, PartiallyOrderedCollection<Individual<List<Double>, S, F>> orderedPopulation1, Function<S, F> fitnessFunction, Random random, ExecutorService executor, State state) throws ExecutionException, InterruptedException {
-        List<Individual<List<Double>,S,F>> allGenotypesPerformance = orderedPopulation.all().stream().filter(Objects::nonNull).collect(Collectors.toList());
-        List<Individual<List<Double>,S,F>> allGenotypesEvolvability = orderedPopulation1.all().stream().filter(Objects::nonNull).collect(Collectors.toList());
-        DAGPartiallyOrderedCollection<Individual<List<Double>,S,F>> offspring = new DAGPartiallyOrderedCollection<>(individualComparator);
+        List<Individual<List<Double>, S, F>> allGenotypesPerformance = orderedPopulation.all().stream().filter(Objects::nonNull).collect(Collectors.toList());
+        List<Individual<List<Double>, S, F>> allGenotypesEvolvability = orderedPopulation1.all().stream().filter(Objects::nonNull).collect(Collectors.toList());
+        DAGPartiallyOrderedCollection<Individual<List<Double>, S, F>> offspring = new DAGPartiallyOrderedCollection<>(individualComparator);
 
-        if(this.selectionStrategies == SelectionStrategies.UNIFORM){
-            offspring = uniformSelection(allGenotypesPerformance,allGenotypesEvolvability, offspring, random);
-        }else{
-            offspring = rouletteWheelSelection(allGenotypesPerformance,allGenotypesEvolvability, offspring, random);
+        if (this.selectionStrategies == SelectionStrategies.UNIFORM) {
+            offspring = uniformSelection(allGenotypesPerformance, allGenotypesEvolvability, offspring, random);
+        } else {
+            offspring = rouletteWheelSelection(allGenotypesPerformance, allGenotypesEvolvability, offspring, random);
         }
 
 
@@ -113,30 +125,40 @@ public class MapElitesWithEvolvabilityEvolver<S,F> extends AbstractIterativeEvol
         return AbstractIterativeEvolver.map(offspringGenotypes, List.of(), solutionMapper, fitnessFunction, executor, state);
     }
 
-    protected List<List<Individual<List<Double>, S, F>>> buildChildren(Collection<Individual<List<Double>, S, F>> population, Function<S, F> fitnessFunction, Random random, ExecutorService executor, State state) throws ExecutionException, InterruptedException{
+    protected List<List<Individual<List<Double>, S, F>>> buildChildren(Collection<Individual<List<Double>, S, F>> population, Function<S, F> fitnessFunction, Random random, ExecutorService executor, State state) throws ExecutionException, InterruptedException {
         ArrayList<List<Individual<List<Double>, S, F>>> children = new ArrayList<>();
 
-        for (Individual<List<Double>, S, F> ind : population ){
-            Collection<List<Double>> offspringGenotypes =IntStream.range(0, batch_size).mapToObj(i -> mutation.mutate(ind.getGenotype(), random)).collect(Collectors.toList());
+        for (Individual<List<Double>, S, F> ind : population) {
+            Collection<List<Double>> offspringGenotypes = IntStream.range(0, batch_size).mapToObj(i -> mutation.mutate(ind.getGenotype(), random)).collect(Collectors.toList());
             children.add(new ArrayList<>(AbstractIterativeEvolver.map(offspringGenotypes, List.of(), solutionMapper, fitnessFunction, executor, state)));
 
         }
         return children;
 
     }
-    protected DAGPartiallyOrderedCollection<Individual<List<Double>,S,F>> uniformSelection(List<Individual<List<Double>,S,F>> allGenotypesPerformance, List<Individual<List<Double>,S,F>> allGenotypesEvolvability, DAGPartiallyOrderedCollection<Individual<List<Double>,S,F>> offspring, Random random){
-        for (int c = 0; c< (batch_size/2); c++) {
-            offspring.add(allGenotypesPerformance.get(random.nextInt(allGenotypesPerformance.size())));
+
+    protected DAGPartiallyOrderedCollection<Individual<List<Double>, S, F>> uniformSelection(List<Individual<List<Double>, S, F>> allGenotypesPerformance, List<Individual<List<Double>, S, F>> allGenotypesEvolvability, DAGPartiallyOrderedCollection<Individual<List<Double>, S, F>> offspring, Random random) {
+        HashSet<Individual<List<Double>, S, F>> uniqueGenotype = new HashSet<>();
+        while (uniqueGenotype.size() < (batch_size )) {
+            Individual<List<Double>, S, F> geno = allGenotypesPerformance.get(random.nextInt(allGenotypesPerformance.size()));
+            uniqueGenotype.add(geno);
+
         }
-        for (int c = 0; c< batch_size-(batch_size/2); c++) {
-            offspring.add(allGenotypesEvolvability.get(random.nextInt(allGenotypesEvolvability.size())));
+        while (uniqueGenotype.size() < (batch_size)) {
+            Individual<List<Double>, S, F> geno = allGenotypesEvolvability.get(random.nextInt(allGenotypesEvolvability.size()));
+            uniqueGenotype.add(geno);
+
         }
+        for (Individual<List<Double>, S, F> ind : uniqueGenotype) {
+            offspring.add(ind);
+        }
+
         return offspring;
     }
 
-        protected DAGPartiallyOrderedCollection<Individual<List<Double>,S,F>> rouletteWheelSelection(List<Individual<List<Double>,S,F>> allGenotypesPerformance, List<Individual<List<Double>,S,F>> allGenotypesEvolvability, DAGPartiallyOrderedCollection<Individual<List<Double>,S,F>> offspring, Random random){
-        double[] pDistribution =new double[allGenotypesPerformance.size()];
-        double[] eDistribution =new double[allGenotypesEvolvability.size()];
+    protected DAGPartiallyOrderedCollection<Individual<List<Double>, S, F>> rouletteWheelSelection(List<Individual<List<Double>, S, F>> allGenotypesPerformance, List<Individual<List<Double>, S, F>> allGenotypesEvolvability, DAGPartiallyOrderedCollection<Individual<List<Double>, S, F>> offspring, Random random) {
+        double[] pDistribution = new double[allGenotypesPerformance.size()];
+        double[] eDistribution = new double[allGenotypesEvolvability.size()];
 
         double psum = 0;
         double esum = 0;
@@ -147,35 +169,34 @@ public class MapElitesWithEvolvabilityEvolver<S,F> extends AbstractIterativeEvol
 
         double finalPsum = psum;
         double[] finalPDistribution = pDistribution;
-        pDistribution = IntStream.range(1,pDistribution.length).mapToDouble(i -> i==0? (finalPDistribution[i]/ finalPsum): finalPDistribution[i-1]+(finalPDistribution[i]/ finalPsum)).toArray();
+        pDistribution = IntStream.range(1, pDistribution.length).mapToDouble(i -> i == 0 ? (finalPDistribution[i] / finalPsum) : finalPDistribution[i - 1] + (finalPDistribution[i] / finalPsum)).toArray();
 
         for (int i = 0; i < eDistribution.length; i++) {
             eDistribution[i] = population.getCrowednessEvolvability(allGenotypesEvolvability.get(i));
             esum += eDistribution[i];
         }
 
-        double finalEsum =esum;
+        double finalEsum = esum;
         double[] finalEDistribution = eDistribution;
-        eDistribution = IntStream.range(1,eDistribution.length).mapToDouble(i -> i==0? (finalEDistribution[i]/ finalEsum): finalEDistribution[i-1]+(finalEDistribution[i]/ finalEsum)).toArray();
+        eDistribution = IntStream.range(1, eDistribution.length).mapToDouble(i -> i == 0 ? (finalEDistribution[i] / finalEsum) : finalEDistribution[i - 1] + (finalEDistribution[i] / finalEsum)).toArray();
 
 
-
-        for (int c = 0; c< (batch_size/2); c++) {
+        for (int c = 0; c < (batch_size / 2); c++) {
             double rnd = random.nextDouble();
-            boolean flag =true;
+            boolean flag = true;
             for (int i = 0; i < finalPDistribution.length && flag; i++) {
-                if(rnd < finalEDistribution[i]){
-                    flag= false;
+                if (rnd < finalEDistribution[i]) {
+                    flag = false;
                     offspring.add(allGenotypesPerformance.get(i));
                 }
             }
         }
-        for (int c = 0; c< batch_size -(batch_size/2); c++) {
+        for (int c = 0; c < batch_size - (batch_size / 2); c++) {
             double rnd = random.nextDouble();
-            boolean flag =true;
+            boolean flag = true;
             for (int i = 0; i < finalEDistribution.length && flag; i++) {
-                if(rnd < finalEDistribution[i]){
-                    flag= false;
+                if (rnd < finalEDistribution[i]) {
+                    flag = false;
                     offspring.add(allGenotypesEvolvability.get(i));
                 }
             }
