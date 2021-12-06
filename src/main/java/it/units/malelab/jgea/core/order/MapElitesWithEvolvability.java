@@ -1,7 +1,6 @@
 package it.units.malelab.jgea.core.order;
 
 import it.units.malelab.jgea.core.util.Pair;
-import org.checkerframework.checker.units.qual.A;
 
 import java.util.*;
 import java.util.function.BiFunction;
@@ -73,7 +72,7 @@ public class MapElitesWithEvolvability<T> extends MapElites<T>{
         differentChild.add(index(ind));
 
         for (T child: children){
-            if( helper.apply(child) >= minimumFactor) {
+            if( getFitness.apply(child) >= minimumFactor) {
                 differentChild.add(index(child));
                 selectedChild.add(child);
             }
@@ -81,7 +80,7 @@ public class MapElitesWithEvolvability<T> extends MapElites<T>{
         //int evolvability = differentChild.size();
         double evolvability = getEvo.apply(ind);
         for ( T child: selectedChild){
-            evolvability += helper.apply(child);
+            evolvability += getFitness.apply(child);
         }
 
         Pair<T, Double> pair = evolvabilityArchive.get(index(ind));
@@ -98,7 +97,7 @@ public class MapElitesWithEvolvability<T> extends MapElites<T>{
     }
 
     public void updateMinimumFactor(){
-        this.minimumFactor = archive.values().stream().mapToDouble(ind -> helper.apply((T)ind)).average().getAsDouble();
+        this.minimumFactor = archive.values().stream().mapToDouble(ind -> getFitness.apply((T)ind)).average().getAsDouble();
     }
 
 

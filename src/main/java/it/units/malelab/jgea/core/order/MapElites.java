@@ -1,18 +1,7 @@
 package it.units.malelab.jgea.core.order;
 
-import it.units.malelab.jgea.core.Individual;
-
 import java.util.*;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-
-import it.units.malelab.jgea.core.order.PartialComparator;
-import it.units.malelab.jgea.core.order.PartiallyOrderedCollection;
-import it.units.malelab.jgea.core.util.ArrayTable;
-import it.units.malelab.jgea.core.util.TableMap;
-import it.units.malelab.jgea.core.util.Pair;
-import org.apache.commons.math3.random.AbstractRandomGenerator;
-import org.checkerframework.checker.units.qual.A;
 
 /**
  * @author andrea
@@ -22,21 +11,21 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
     protected final HashMap<List<Integer>, T> archive;
     protected final Boolean maximize;
     protected final Function<T, List<Double>> descriptor;
-    protected final Function<T, Double> helper;
+    protected final Function<T, Double> getFitness;
     protected final PartialComparator<? super T> comparator;
     protected final List<Double> threshold;
     protected final List<Integer> size;
     protected final List<Double> min;
     protected final List<Double> max;
     public ArrayList<T> lastAddedPerformance;
-    public int counter = 0;
-    public int counter2 = 0;
+    public int notAdded = 0;
+    public int updated = 0;
 
-    public MapElites(List<Integer> size, List<Double> min, List<Double> max, Boolean maximize, Function<T, List<Double>> descriptor, PartialComparator<? super T> comparator, Function<T, Double> helper) {
+    public MapElites(List<Integer> size, List<Double> min, List<Double> max, Boolean maximize, Function<T, List<Double>> descriptor, PartialComparator<? super T> comparator, Function<T, Double> getFitness) {
         archive = new HashMap<>();
         this.maximize = maximize;
         this.descriptor = descriptor;
-        this.helper = helper;
+        this.getFitness = getFitness;
         this.comparator = comparator;
         this.min = min;
         this.max = max;
@@ -49,10 +38,8 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
 
     public ArrayList<Integer> calcIndexes(List<Double> indexes) {
         ArrayList<Integer> newIndexes = new ArrayList<>();
-        //System.out.println("-------");
         for (int i = 0; i < threshold.size(); i++) {
-            //System.out.println(i+" "+threshold.get(i)+" "+max.get(i)+" "+min.get(i));
-            Integer index = (int) (indexes.get(i) / threshold.get(i));
+            Integer index = (int) ((indexes.get(i)- min.get(i))/ threshold.get(i));
             if (indexes.get(i) < min.get(i)) {
                 newIndexes.add(0);
             } else if (indexes.get(i) > max.get(i)) {
@@ -60,51 +47,14 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
             } else {
                 newIndexes.add(index);
             }
-
-            //System.out.println(indexes.get(i)+"   "+index+"   "+threshold.get(i)+"   "+ newIndexes.get(i));
-
         }
-        //System.out.println("----------");
-        Integer tmp = newIndexes.get(1);
-        newIndexes.set(1, newIndexes.get(2));
-        newIndexes.set(2, tmp);
-        //System.out.println("-------");
+
         return newIndexes;
     }
 
     public ArrayList<Integer> index(T individual) {
         List<Double> indexes = this.descriptor.apply(individual);
         return calcIndexes(indexes);
-    }
-
-    public boolean shouldBeRecorded(T individual) {
-        List<Double> indexes = this.descriptor.apply(individual);
-        T oldInd = archive.get(calcIndexes(indexes));
-
-        if (oldInd == null) {
-            //System.out.println(calcIndexes(indexes).toString());
-            return true;
-        } else {
-            if (maximize) {
-                //S(helper.apply(individual) < helper.apply(oldInd)) {//
-                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.BEFORE)) {
-
-                    counter2 += 1;
-
-                    System.out.println(calcIndexes(indexes).toString() + "; " + helper.apply(individual) + "; " + helper.apply(oldInd));
-                    //System.out.println(calcIndexes(indexes).toString());
-                    return false;
-                }
-            } else {
-                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.AFTER)) {
-                    counter2 += 1;
-                    return true;
-                }
-            }
-        }
-
-        counter += 1;
-        return false;
     }
 
     public double getCrowedness(T individual) {
@@ -138,12 +88,12 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
 
     @Override
     public Collection<T> firsts() {
-        return all();
+        return null;
     }
 
     @Override
     public Collection<T> lasts() {
-        return all();
+        return null;
     }
 
     @Override
@@ -154,7 +104,6 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
             archive.put(calcIndexes(indexes), null);
             return true;
         }
-
         return false;
     }
 
@@ -164,17 +113,20 @@ public class MapElites<T> implements PartiallyOrderedCollection<T> {
 
         if (oldInd != null) {
             if (maximize) {
-                if (helper.apply(individual) >= helper.apply(oldInd)) {
-                //if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.BEFORE)) {
-
+                if (getFitness.apply(individual) >= getFitness.apply(oldInd)) {
                     archive.put(convertedIndexes, individual);
+                    this.updated += 1;
                     this.lastAddedPerformance.add(individual);
+                }else{
+                    this.notAdded += 1;
                 }
             } else {
-                //if (helper.apply(individual) <= helper.apply(oldInd)) {
-                if (comparator.compare(individual, oldInd).equals(PartialComparator.PartialComparatorOutcome.AFTER)) {
+                if (getFitness.apply(individual) <= getFitness.apply(oldInd)) {
                     archive.put(convertedIndexes, individual);
+                    this.updated += 1;
                     this.lastAddedPerformance.add(individual);
+                }else{
+                    this.notAdded+=1;
                 }
             }
         } else {

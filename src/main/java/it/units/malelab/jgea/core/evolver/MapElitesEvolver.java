@@ -53,13 +53,8 @@ public class MapElitesEvolver<S,F> extends AbstractIterativeEvolver<List<Double>
         Collection<Individual<List<Double>,S,F>> newPops = initPopulation(fitnessFunction, random, executor, state);
 
         L.fine(String.format("Population initialized: %d individuals", population.size()));
-        DAGPartiallyOrderedCollection<Individual<List<Double>,S,F>> newPopsAdded = new DAGPartiallyOrderedCollection<>(individualComparator);
-        for (Individual<List<Double>,S,F> ind: newPops){
-            if (population.shouldBeRecorded(ind)){
-                newPopsAdded.add(ind);
-            }
-        }
         population.addAll(newPops);
+        DAGPartiallyOrderedCollection<Individual<List<Double>,S,F>> newPopsAdded = new DAGPartiallyOrderedCollection<>(population.lastAddedPerformance, individualComparator);
         while (true) {
 
             state.setElapsedMillis(stopwatch.elapsed(TimeUnit.MILLISECONDS));
@@ -68,19 +63,14 @@ public class MapElitesEvolver<S,F> extends AbstractIterativeEvolver<List<Double>
 
             listener.listen(event);
             if (stopCondition.test(event)) {
-                System.out.println(population.values().size()+" not recorded "+ population.counter+" updated "+population.counter2);
+                System.out.println(population.values().size()+" not recorded "+ population.notAdded+" updated "+population.updated);
                 L.fine(String.format("Stop condition met: %s", stopCondition.toString()));
                 break;
             }
 
             newPops = updatePopulation(population, fitnessFunction, random, executor, state);
-            newPopsAdded = new DAGPartiallyOrderedCollection<>(individualComparator);
-            for (Individual<List<Double>,S,F> ind: newPops){
-                if (population.shouldBeRecorded(ind)){
-                    newPopsAdded.add(ind);
-                }
-            }
             population.addAll(newPops);
+            newPopsAdded = new DAGPartiallyOrderedCollection<>(population.lastAddedPerformance, individualComparator);
             L.fine(String.format("Population updated: %d individuals", population.size()));
             state.incIterations(1);
         }
